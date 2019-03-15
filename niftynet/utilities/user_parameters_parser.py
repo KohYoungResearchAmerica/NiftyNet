@@ -75,7 +75,7 @@ NIFTYNET_HOME = NiftyNetGlobalConfig().get_niftynet_home_folder()
 
 
 # pylint: disable=too-many-branches
-def run():
+def run(external_argv=None):
     """
     meta_parser is first used to find out location
     of the configuration file. Based on the application_name
@@ -108,8 +108,10 @@ def run():
                              help="specify an application module name",
                              metavar='APPLICATION_NAME',
                              default="")
-
-    meta_args, args_from_cmdline = meta_parser.parse_known_args()
+    if external_argv is not None:
+        meta_args, args_from_cmdline = meta_parser.parse_known_args(external_argv[1::])
+    else:
+        meta_args, args_from_cmdline = meta_parser.parse_known_args()
     print(version_string)
 
     # read configurations, to be parsed by sections
@@ -120,7 +122,11 @@ def run():
     # infer application name from command
     app_name = None
     try:
-        parser_prog = meta_parser.prog.replace('.py', '')
+        if external_argv is not None:
+            command = os.path.basename(external_argv[0])
+        else:
+            command = meta_parser.prog
+        parser_prog = command.replace('.py', '')
         app_name = parser_prog if parser_prog in SUPPORTED_APP \
             else meta_args.application_name
         assert app_name
