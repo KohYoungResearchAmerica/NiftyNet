@@ -183,6 +183,31 @@ class SegmentationApplication(BaseApplication):
             reader.add_preprocessing_layers(
                 volume_padding_layer + normalisation_layers)
 
+    def reset_readers(self, data_param, task_param, data_partitioner):
+        """
+        This is part of a hacky way to cram independent file submissions into niftynet batchp-processing pipeline.
+        Generally readers are set-up for each name then run and done. Since we are trying to re-use the pipeline
+        after changing the input files (by re-writing .csv) we need a way to re-init readers.
+        NOTE: if number of readers changed, all hell could break loose.
+        :param data_param:
+        :param task_param:
+        :param data_partitioner:
+        :return:
+        """
+        if self.readers is None:
+            self.initialise_dataset_loader(data_param, task_param, data_partitioner)
+        else:
+            try:
+                reader_phase = self.action_param.dataset_to_infer
+            except AttributeError:
+                reader_phase = None
+            file_lists = data_partitioner.get_file_lists_by(phase=reader_phase, action=self.action)
+            for ind, reader in enumerate(self.readers):
+                # this is particularly risky part, we are assuming file_lists still aligned with readers even though
+                # data changed since last run. Should be ok for given use case (segmentation server) since only
+                # Modality.csv file being changed between runs (not main .ini)
+                reader.initialise(data_param, task_param, file_lists[ind])
+
     def initialise_uniform_sampler(self):
         self.sampler = [[UniformSampler(
             reader=reader,

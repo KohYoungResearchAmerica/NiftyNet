@@ -171,6 +171,7 @@ class ImageReader(Layer):
 
         self.output_list, self._file_list = _filename_to_image_list(
             file_list, self._input_sources, data_param)
+        self.current_id = -1  # reset id to initial state
         for name in self.names:
             tf.logging.info(
                 'Image reader: loading %d subjects '

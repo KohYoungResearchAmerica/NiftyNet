@@ -68,6 +68,11 @@ class ApplicationDriver(object):
         self._event_handlers = None
         self._generator = None
 
+        self.data_param = None
+        self.graph = None
+        self.tf_session = None
+        self.app_param = None
+
     def initialise_application(self, workflow_param, data_param=None):
         """
         This function receives all parameters from user config file,
@@ -129,12 +134,14 @@ class ApplicationDriver(object):
 
         # create an application instance
         assert app_param, 'application specific param. not specified'
-        app_module = ApplicationFactory.create(app_param.name)
+        self.app_param = app_param
+        app_module = ApplicationFactory.create(self.app_param.name)
         self.app = app_module(net_param, action_param, system_param.action)
 
         # clear the cached file lists
         self.data_partitioner.reset()
-        if data_param:
+        self.data_param = data_param
+        if self.data_param:
             do_new_partition = \
                 self.is_training_action and \
                 (not os.path.isfile(system_param.dataset_split_file)) and \
@@ -162,9 +169,9 @@ class ApplicationDriver(object):
                     system_param.dataset_split_file,
                     train_param.exclude_fraction_for_validation)
 
-        # initialise readers
+        # initialise app's readers
         self.app.initialise_dataset_loader(
-            data_param, app_param, self.data_partitioner)
+            self.data_param, self.app_param, self.data_partitioner)
 
         # make the list of initialised event handler instances.
         self.load_event_handlers(
@@ -172,26 +179,51 @@ class ApplicationDriver(object):
         self._generator = IteratorFactory.create(
             system_param.iteration_generator or DEFAULT_ITERATION_GENERATOR)
 
-    def run(self, application, graph=None):
+    def run(self, application, graph=None, reset_data=False):
         """
         Initialise a TF graph, connect data sampler and network within
         the graph context, run training loops or inference loops.
 
         :param application: a niftynet application
         :param graph: default base graph to run the application
+        :param reset_data: whether to re-initialize data
         :return:
         """
-        if graph is None:
-            graph = ApplicationDriver.create_graph(
+
+        if reset_data:
+            # clear the cached file lists
+            self.data_partitioner.reset()
+            if self.data_param:
+                do_new_partition = False
+                data_fractions = None
+
+                self.data_partitioner.initialise(
+                    data_param=self.data_param,
+                    new_partition=do_new_partition,
+                    ratios=data_fractions,
+                    data_split_file=None)
+
+            # re-initialise readers
+            self.app.reset_readers(
+                self.data_param, self.app_param, self.data_partitioner)
+
+        if graph is not None:
+            self.graph = graph
+        elif self.graph is None:
+            st = time.time()
+            self.graph = ApplicationDriver.create_graph(
                 application=application,
                 num_gpus=self.num_gpus,
                 num_threads=self.num_threads,
                 is_training_action=self.is_training_action)
+            print("graph init time", time.time() - st)
 
         start_time = time.time()
         loop_status = {'current_iter': self.initial_iter, 'normal_exit': False}
 
-        with tf.Session(config=tf_config(), graph=graph):
+        # if self.tf_session is None:
+        #     self.tf_session = tf.Session(config=tf_config(), graph=self.graph)
+        with tf.Session(config=tf_config(), graph=self.graph):
             try:
                 # broadcasting event of session started
                 SESS_STARTED.send(application, iter_msg=None)

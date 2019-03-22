@@ -49,6 +49,7 @@ class GridSamplesAggregator(ImageWindowsAggregator):
                 #    save current image and create an empty image
                 self._save_current_image()
                 if self._is_stopping_signal(location[batch_id]):
+                    self.image_id = image_id
                     return False
                 self.image_out = self._initialise_empty_image(
                     image_id=image_id,
@@ -71,7 +72,7 @@ class GridSamplesAggregator(ImageWindowsAggregator):
         return empty_image
 
     def _save_current_image(self):
-        if self.input_image is None:
+        if self.input_image is None or self.image_id == -1:
             return
 
         for layer in reversed(self.reader.preprocessors):

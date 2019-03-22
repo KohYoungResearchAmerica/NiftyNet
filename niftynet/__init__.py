@@ -154,11 +154,8 @@ class NiftynetRunner(object):
         tf.reset_default_graph()
         close_logger()
 
-    def run(self):
-        self.app_driver.run(self.app_driver.app)
-
-    def run_file(self, file_couple):
-        pass
+    def run(self, reset_data=False):
+        self.app_driver.run(self.app_driver.app, reset_data=reset_data)
 
 
 def main():
